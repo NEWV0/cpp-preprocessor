@@ -14,13 +14,88 @@ path operator""_p(const char* data, std::size_t sz) {
     return path(data, data + sz);
 }
 
-// напишите эту функцию
-bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories);
+    regex include_1(R"/(\s*#\s*include\s*"([^"]*)"\s*)/");
+    regex include_2(R"/(\s*#\s*include\s*<([^>]*)>\s*)/");
 
-string GetFileContents(string file) {
+bool ProcessInclude(const string& line, const path& current_path, const vector<path>& include_directories, ofstream& out_file, int line_number) {
+    smatch m;
+    if (regex_match(line, m, include_1)) {
+        path included_file = current_path.parent_path() / m[1].str();
+        if (!filesystem::exists(included_file)) {
+            bool found = false;
+            for (const auto& dir : include_directories) {
+                included_file = dir / m[1].str();
+                if (filesystem::exists(included_file)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                cout << "unknown include file " << m[1].str() << " at file " << string(current_path) << " at line " << line_number << endl;
+                return false;
+            }
+        }
+        ifstream infile(included_file);
+        string inner_line;
+        while (getline(infile, inner_line)) {
+            if (!ProcessInclude(inner_line, included_file, include_directories, out_file, line_number)) {
+                return false;
+            }
+        }
+    } else if (regex_match(line, m, include_2)) {
+        path included_file;
+        bool found = false;
+        for (const auto& dir : include_directories) {
+            included_file = dir / m[1].str();
+            if (filesystem::exists(included_file)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            cout << "unknown include file " << m[1].str() << " at file " << string(current_path) << " at line " << line_number << endl;
+            return false;
+        }
+        ifstream infile(included_file);
+        string inner_line;
+        while (getline(infile, inner_line)) {
+            if (!ProcessInclude(inner_line, included_file, include_directories, out_file, line_number)) {
+                return false;
+            }
+        }
+    } else {
+        out_file << line << endl;
+    }
+    return true;
+}
+
+
+bool Preprocess(const path& in_file, const path& out_file, const vector<path>& include_directories) {
+    ifstream infile(in_file);
+    if (!infile.is_open()) {
+        return false;
+    }
+
+    ofstream outfile(out_file);
+    if (!outfile.is_open()) {
+        return false;
+    }
+
+    string line;
+    int line_number = 1;
+    while (getline(infile, line)) {
+        if (!ProcessInclude(line, in_file, include_directories, outfile, line_number)) {
+            return false;
+        }
+        line_number++;
+    }
+
+    return true;
+}
+
+
+string GetFileContents(const string& file) {
     ifstream stream(file);
-
-    // конструируем string по двум итераторам
     return {(istreambuf_iterator<char>(stream)), istreambuf_iterator<char>()};
 }
 
