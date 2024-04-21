@@ -39,7 +39,7 @@ bool ProcessInclude(const string& line, const path& current_path, const vector<p
         string inner_line;
         while (getline(infile, inner_line)) {
             if (!ProcessInclude(inner_line, included_file, include_directories, out_file, line_number)) {
-                return false;
+                 return false;
             }
         }
     } else if (regex_match(line, m, include_2)) {
